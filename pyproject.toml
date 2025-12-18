@@ -1,0 +1,121 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cc-atoms"
+version = "2.0.0"
+description = "Autonomous Claude Code orchestration system with embeddable core"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Tony", email = "markanthonykoop@gmail.com"}
+]
+keywords = ["claude", "ai", "automation", "orchestration", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Shells",
+]
+
+[project.urls]
+Homepage = "https://github.com/tonyjabroni/cc-atoms"
+Documentation = "https://github.com/tonyjabroni/cc-atoms#readme"
+Repository = "https://github.com/tonyjabroni/cc-atoms"
+
+[project.scripts]
+# CLI entry points - these become commands when installed
+atom = "cc_atoms.cli:main"
+atom-gui = "cc_atoms.tools.atom_gui:main"
+atom-create-tool = "cc_atoms.tools.atom_create_tool:main"
+atom-session-analyzer = "cc_atoms.tools.atom_session_analyzer:main"
+gui-control = "cc_atoms.tools.gui_control:main"
+elysia-sync = "cc_atoms.tools.elysia_sync:main"
+multi-db-agent = "cc_atoms.tools.multi_db_agent:main"
+home-indexer = "cc_atoms.tools.multi_db_agent.home_indexer:main"
+conversational-agent = "cc_atoms.tools.multi_db_agent.conversational_agent:main"
+data-agent = "cc_atoms.tools.multi_db_agent.autonomous_agent:main"
+cap-registry = "cc_atoms.tools.multi_db_agent.capability_registry:main"
+workflow-engine = "cc_atoms.tools.multi_db_agent.workflow_engine:main"
+search-gui = "cc_atoms.tools.multi_db_agent.search_gui:main"
+meta-agent = "cc_atoms.tools.multi_db_agent.meta_agent:main"
+iro = "cc_atoms.tools.multi_db_agent.intelligent_retrieval:main"
+smart-search = "cc_atoms.tools.multi_db_agent.smart_search:main"
+
+[project.optional-dependencies]
+gui = ["pillow"]  # For atom_gui image support
+elysia = ["weaviate-client>=4.0", "elysia-ai"]  # For Elysia/Weaviate integration
+multi-db = ["semantic-router", "chromadb", "sqlalchemy"]  # For multi_db_agent
+llama = ["llama-index", "llama-index-llms-anthropic", "llama-index-llms-ollama"]  # LlamaIndex integration
+dev = [
+    "pytest>=7.0",
+    "black",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"cc_atoms" = ["prompts/*.md"]
+
+[tool.black]
+line-length = 100
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | archive
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py37"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__.py
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"

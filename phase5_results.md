@@ -1,0 +1,3 @@
+Background PID: 49284
+Waiting for completion...
+Background process completed with exit code: 0

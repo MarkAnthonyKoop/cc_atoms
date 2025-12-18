@@ -1,0 +1,81 @@
+#!/bin/bash
+# Interactive Memory Demo
+# Shows off the memory-enhanced AI assistant
+
+VENV_PYTHON="/Users/tonyjabroni/.venvs/chromadb-env/bin/python"
+
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "Error: chromadb venv not found"
+    exit 1
+fi
+
+exec "$VENV_PYTHON" << 'PYTHON_SCRIPT'
+"""
+🧠 Interactive Memory-Enhanced AI Demo
+
+This demo lets you ask questions and see the AI answer from your
+personal knowledge base (739 indexed documents).
+"""
+import sys
+from cc_atoms.tools.multi_db_agent import create_conversational_agent
+
+def main():
+    print("\n" + "="*60)
+    print("🧠 MEMORY-ENHANCED AI ASSISTANT")
+    print("="*60)
+    print("""
+I have access to YOUR personal knowledge base:
+  • 511 code files from ~/claude and ~/Projects
+  • 23 documents from ~/Documents, ~/Desktop, ~/Downloads
+  • 205 Claude conversation histories
+
+Ask me anything about your projects, code, or past work!
+
+Example questions:
+  • "What projects do I have?"
+  • "How does the AtomRuntime work?"
+  • "What email is used for DistroKid?"
+  • "Summarize my gui_control testing"
+  • "What is the musicbrainz database?"
+
+Type 'quit' or 'q' to exit.
+""")
+
+    try:
+        agent = create_conversational_agent(verbose=False)
+        stats = agent.get_stats()
+        print(f"📊 Loaded {stats.get('document_count', 0)} documents\n")
+    except Exception as e:
+        print(f"Error: {e}")
+        print("Make sure you've indexed your home directory:")
+        print("  ~/claude/cc/bin/home-indexer index")
+        return 1
+
+    while True:
+        try:
+            print("─" * 60)
+            question = input("\n❓ You: ").strip()
+
+            if question.lower() in ('quit', 'q', 'exit'):
+                print("\n👋 Goodbye!")
+                break
+
+            if not question:
+                continue
+
+            print("\n🤔 Thinking...")
+            response = agent.ask(question)
+
+            print(f"\n💡 AI:\n{response}\n")
+
+        except KeyboardInterrupt:
+            print("\n\n👋 Goodbye!")
+            break
+        except EOFError:
+            break
+
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
+PYTHON_SCRIPT

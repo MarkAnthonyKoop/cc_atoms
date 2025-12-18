@@ -1,0 +1,52 @@
+#!/bin/bash
+#
+# atom_session_analyzer - Extract and analyze Claude Code sessions
+#
+# Usage:
+#   atom_session_analyzer                    # Extract current session log
+#   atom_session_analyzer "your prompt"      # Extract and analyze with prompt
+#
+
+set -e
+
+# Extract the current session (most recent) to current directory
+SESSION_LOG_FILE="session_log.md"
+
+# Use claude-extract to get the most recent session (number 1) in detailed mode
+claude-extract --extract 1 --output . --format markdown --detailed > /dev/null 2>&1
+
+# Find the generated file (it will have a date-stamped name)
+GENERATED_FILE=$(ls -t claude-conversation-*.md 2>/dev/null | head -n 1)
+
+if [ -z "$GENERATED_FILE" ]; then
+    echo "Error: Failed to extract session log" >&2
+    exit 1
+fi
+
+# Rename to session_log.md for consistent access
+mv "$GENERATED_FILE" "$SESSION_LOG_FILE"
+
+# If no arguments, just print the path and exit
+if [ $# -eq 0 ]; then
+    echo "$(pwd)/$SESSION_LOG_FILE"
+    exit 0
+fi
+
+# If arguments provided, call atom with the prompt
+USER_PROMPT="$*"
+
+# Create a temporary file for the user prompt
+echo "$USER_PROMPT" > USER_PROMPT.txt
+
+# Call atom with the session analyzer toolname
+# The atom system will create a subdir and load ATOM.md + ATOM_SESSION_ANALYZER.md
+atom --toolname atom_session_analyzer < USER_PROMPT.txt
+
+# Capture the return code
+ATOM_EXIT_CODE=$?
+
+# Clean up temp file
+rm -f USER_PROMPT.txt
+
+# Exit with atom's return code
+exit $ATOM_EXIT_CODE

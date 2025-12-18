@@ -1,0 +1,4 @@
+#!/bin/bash
+# Data Search Web UI - Browser-based search interface
+VENV_PYTHON="$HOME/.venvs/chromadb-env/bin/python"
+exec "$VENV_PYTHON" -m cc_atoms.tools.multi_db_agent.search_web "$@"

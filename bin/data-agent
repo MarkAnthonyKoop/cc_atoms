@@ -1,0 +1,17 @@
+#!/bin/bash
+# Wrapper script for data-agent that uses the chromadb venv
+# This ensures chromadb works regardless of the system Python version
+
+VENV_PYTHON="$HOME/.venvs/chromadb-env/bin/python"
+
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "Error: chromadb venv not found at $VENV_PYTHON"
+    echo ""
+    echo "Create it with:"
+    echo "  /usr/bin/python3 -m venv ~/.venvs/chromadb-env"
+    echo "  ~/.venvs/chromadb-env/bin/pip install chromadb"
+    echo "  ~/.venvs/chromadb-env/bin/pip install -e ~/claude/cc"
+    exit 1
+fi
+
+exec "$VENV_PYTHON" -m cc_atoms.tools.multi_db_agent.autonomous_agent "$@"

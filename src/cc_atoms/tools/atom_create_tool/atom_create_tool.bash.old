@@ -1,0 +1,337 @@
+#!/bin/bash
+#
+# atom_create_tool - Generate new atom-based tools
+#
+# Usage:
+#   atom_create_tool                                      # Interactive mode
+#   atom_create_tool "description of tool to create"      # AI-assisted mode
+#
+
+set -e
+
+TOOLS_DIR="$HOME/cc_atoms/tools"
+BIN_DIR="$HOME/cc_atoms/bin"
+PROMPTS_DIR="$HOME/cc_atoms/prompts"
+
+# Ensure required directories exist
+mkdir -p "$TOOLS_DIR"
+mkdir -p "$BIN_DIR"
+mkdir -p "$PROMPTS_DIR"
+
+# Function to validate tool name
+validate_tool_name() {
+    local name="$1"
+
+    # Check if name is empty
+    if [ -z "$name" ]; then
+        echo "Error: Tool name cannot be empty" >&2
+        return 1
+    fi
+
+    # Check for valid characters (lowercase, numbers, underscores only)
+    if ! echo "$name" | grep -qE '^[a-z0-9_]+$'; then
+        echo "Error: Tool name must contain only lowercase letters, numbers, and underscores" >&2
+        return 1
+    fi
+
+    # Check if tool already exists
+    if [ -d "$TOOLS_DIR/$name" ]; then
+        echo "Error: Tool '$name' already exists at $TOOLS_DIR/$name" >&2
+        return 1
+    fi
+
+    return 0
+}
+
+# Function to convert tool name to uppercase for system prompt
+to_uppercase() {
+    echo "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+# Interactive mode - scaffold a new tool
+interactive_mode() {
+    echo "=== Atom Tool Creator - Interactive Mode ==="
+    echo
+
+    # Get tool name
+    local tool_name
+    while true; do
+        read -p "Tool name (e.g., atom_code_reviewer): " tool_name
+        if validate_tool_name "$tool_name"; then
+            break
+        fi
+    done
+
+    # Get description
+    local description
+    read -p "Brief description: " description
+
+    # Get key features
+    echo "Key features/capabilities (one per line, empty line to finish):"
+    local features=()
+    while true; do
+        read -p "  - " feature
+        if [ -z "$feature" ]; then
+            break
+        fi
+        features+=("$feature")
+    done
+
+    # Create tool directory
+    local tool_dir="$TOOLS_DIR/$tool_name"
+    mkdir -p "$tool_dir"
+
+    echo
+    echo "Creating tool structure..."
+
+    # Generate the bash script
+    local script_file="$tool_dir/$tool_name"
+    cat > "$script_file" << 'SCRIPT_EOF'
+#!/bin/bash
+#
+# TOOL_NAME_PLACEHOLDER - DESCRIPTION_PLACEHOLDER
+#
+# Usage:
+#   TOOL_NAME_PLACEHOLDER                    # Basic mode
+#   TOOL_NAME_PLACEHOLDER "your prompt"      # AI-assisted mode
+#
+
+set -e
+
+# If no arguments, run basic functionality
+if [ $# -eq 0 ]; then
+    echo "Running TOOL_NAME_PLACEHOLDER in basic mode..."
+    # Add your basic mode implementation here
+    exit 0
+fi
+
+# If arguments provided, call atom with the specialized prompt
+USER_PROMPT="$*"
+
+# Create a temporary file for the user prompt
+echo "$USER_PROMPT" > USER_PROMPT.txt
+
+# Call atom with the tool's specialized system prompt
+atom --toolname TOOL_NAME_PLACEHOLDER < USER_PROMPT.txt
+
+# Capture the return code
+ATOM_EXIT_CODE=$?
+
+# Clean up temp file
+rm -f USER_PROMPT.txt
+
+# Exit with atom's return code
+exit $ATOM_EXIT_CODE
+SCRIPT_EOF
+
+    # Replace placeholders
+    sed -i "s/TOOL_NAME_PLACEHOLDER/$tool_name/g" "$script_file"
+    sed -i "s/DESCRIPTION_PLACEHOLDER/$description/g" "$script_file"
+
+    chmod +x "$script_file"
+
+    # Generate the system prompt
+    local prompt_name=$(to_uppercase "$tool_name")
+    local prompt_file
+
+    # Determine where to put the system prompt
+    if [[ "$tool_name" == atom_* ]]; then
+        # Tools with atom_ prefix get prompts in ~/cc_atoms/prompts/
+        prompt_file="$PROMPTS_DIR/${prompt_name}.md"
+    else
+        # Other tools get prompts in their tool directory
+        prompt_file="$tool_dir/${prompt_name}.md"
+    fi
+
+    cat > "$prompt_file" << EOF
+# ${prompt_name} Tool Mode
+
+You are running in **${tool_name}** mode. Your task is to ${description}.
+
+## Overview
+
+${description}
+
+## Key Capabilities
+
+EOF
+
+    # Add features to the prompt
+    for feature in "${features[@]}"; do
+        echo "- $feature" >> "$prompt_file"
+    done
+
+    cat >> "$prompt_file" << 'EOF'
+
+## Available Resources
+
+- Full file system access
+- All standard Claude Code tools
+- Ability to create files, run commands, and install packages
+
+## Your Task
+
+The user has provided a prompt requesting specific functionality. Your job is to:
+
+1. **Understand the request**: Parse the user's prompt in `USER_PROMPT.md`
+2. **Implement the solution**: Use available tools to fulfill the request
+3. **Generate output**: Create files, reports, or results as requested
+4. **Validate**: Test your work to ensure it meets requirements
+
+## Output Guidelines
+
+- Create files in the current directory (the atom subdir)
+- Use clear, descriptive filenames
+- Include documentation for complex outputs
+- Follow best practices for code quality and maintainability
+
+## Signal Completion
+
+When your task is complete:
+1. Generate all requested outputs
+2. Verify everything works as expected
+3. Print a summary of what was created
+4. Output `EXIT_LOOP_NOW` to signal completion
+
+Begin your work!
+EOF
+
+    # Generate README
+    local readme_file="$tool_dir/README.md"
+    cat > "$readme_file" << EOF
+# ${tool_name} - ${description}
+
+## Quick Start
+
+**Basic usage:**
+\`\`\`bash
+${tool_name}
+\`\`\`
+
+**AI-assisted mode:**
+\`\`\`bash
+${tool_name} "your request here"
+\`\`\`
+
+## What This Tool Does
+
+${description}
+
+## Key Features
+
+EOF
+
+    for feature in "${features[@]}"; do
+        echo "- $feature" >> "$readme_file"
+    done
+
+    cat >> "$readme_file" << 'EOF'
+
+## Examples
+
+### Example 1: Basic Usage
+```bash
+# TODO: Add specific example
+```
+
+### Example 2: AI-Assisted
+```bash
+# TODO: Add specific example with AI prompt
+```
+
+## How It Works
+
+1. **Basic Mode** (no arguments): Performs core functionality
+2. **AI Mode** (with prompt): Spawns atom with specialized system prompt
+
+## Installation
+
+This tool is part of the cc_atoms ecosystem.
+
+```bash
+# The tool is located at:
+# ~/cc_atoms/tools/TOOL_NAME_PLACEHOLDER/
+
+# Add to PATH via the launcher:
+# ~/cc_atoms/bin/TOOL_NAME_PLACEHOLDER
+```
+
+---
+
+**Status**: Ready for implementation
+EOF
+
+    echo "**Created**: $(date +%Y-%m-%d)" >> "$readme_file"
+
+    sed -i "s/TOOL_NAME_PLACEHOLDER/$tool_name/g" "$readme_file"
+
+    # Create launcher in bin
+    local launcher_file="$BIN_DIR/$tool_name"
+    cat > "$launcher_file" << EOF
+#!/bin/bash
+exec "$tool_dir/$tool_name" "\$@"
+EOF
+    chmod +x "$launcher_file"
+
+    # Success message
+    echo
+    echo "✓ Tool created successfully!"
+    echo
+    echo "Location: $tool_dir"
+    echo "Files created:"
+    echo "  - $script_file (executable)"
+    echo "  - $prompt_file (system prompt)"
+    echo "  - $readme_file (documentation)"
+    echo "  - $launcher_file (launcher)"
+    echo
+    echo "Next steps:"
+    echo "  1. Edit $script_file to implement basic mode functionality"
+    echo "  2. Customize $prompt_file for your tool's specific needs"
+    echo "  3. Update $readme_file with specific examples"
+    echo "  4. Test with: $tool_name"
+    echo
+}
+
+# AI-assisted mode - spawn atom to create complete tool
+ai_mode() {
+    local request="$*"
+
+    echo "Creating tool with AI assistance..."
+    echo "Request: $request"
+    echo
+
+    # Create USER_PROMPT.txt with the request
+    cat > USER_PROMPT.txt << EOF
+Create a complete, functional tool for the cc_atoms ecosystem based on this request:
+
+$request
+
+The tool should follow the established patterns from atom_session_analyzer and include:
+1. A working bash script with both basic and AI-assisted modes
+2. A comprehensive system prompt for --toolname mode
+3. Complete README.md with examples
+4. Proper installation (launcher in ~/cc_atoms/bin/)
+
+Make the tool immediately usable and well-documented.
+EOF
+
+    # Spawn atom with atom_create_tool system prompt
+    atom --toolname atom_create_tool < USER_PROMPT.txt
+
+    # Capture return code
+    ATOM_EXIT_CODE=$?
+
+    # Clean up
+    rm -f USER_PROMPT.txt
+
+    exit $ATOM_EXIT_CODE
+}
+
+# Main entry point
+if [ $# -eq 0 ]; then
+    # No arguments - interactive mode
+    interactive_mode
+else
+    # Arguments provided - AI mode
+    ai_mode "$@"
+fi

@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""atom.py - Minimal autonomous Claude Code orchestrator"""
+import argparse
+import subprocess
+import sys
+import time
+import re
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Optional
+
+from config import (
+    MAX_ITERATIONS, EXIT_SIGNAL, PROMPTS_DIR, ATOMS_HOME, BIN_DIR, TOOLS_DIR,
+    NETWORK_ERROR_KEYWORDS, NETWORK_RETRY_BASE, NETWORK_RETRY_MAX,
+    OTHER_RETRY_BASE, OTHER_RETRY_MAX, SESSION_LIMIT_BUFFER,
+    DEFAULT_SESSION_LIMIT_WAIT
+)
+
+
+def load_system_prompt(toolname: Optional[str] = None) -> str:
+    """
+    Load system prompt(s) based on toolname with elegant composition.
+
+    Rules:
+    - toolname=None -> ATOM.md (default)
+    - toolname='atom_*' -> ATOM.md + SPECIFIC.md
+    - toolname='other' -> OTHER.md only
+
+    Examples:
+    - None -> ['ATOM.md']
+    - 'atom_my_tool' -> ['ATOM.md', 'MY_TOOL.md']
+    - 'my_tool' -> ['MY_TOOL.md']
+    """
+    # Define loading strategy
+    if toolname is None:
+        files = ["ATOM.md"]
+    elif toolname.startswith("atom_"):
+        files = ["ATOM.md", f"{toolname[5:].upper()}.md"]
+    else:
+        files = [f"{toolname.upper()}.md"]
+
+    # Load and combine
+    contents = []
+    for filename in files:
+        filepath = PROMPTS_DIR / filename
+        if not filepath.exists():
+            sys.exit(f"❌ {filepath} not found")
+        contents.append(filepath.read_text())
+
+    return "\n\n".join(contents)
+
+
+def run_claude(prompt: str) -> tuple[str, int]:
+    """Run claude code, return (stdout, returncode)."""
+    result = subprocess.run(
+        ["claude", "-c", "-p", prompt, "--dangerously-skip-permissions"],
+        capture_output=True,
+        text=True
+    )
+    return result.stdout, result.returncode
+
+
+def parse_reset_time(text: str) -> int:
+    """Parse 'resets Xpm' message, return seconds to wait (0 if can't parse)."""
+    match = re.search(r'resets (\d+)(am|pm)', text, re.IGNORECASE)
+    if not match:
+        return 0
+
+    hour = int(match.group(1))
+    period = match.group(2).lower()
+
+    if period == 'pm' and hour != 12:
+        hour += 12
+    elif period == 'am' and hour == 12:
+        hour = 0
+
+    now = datetime.now()
+    reset = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+
+    if reset <= now:
+        reset += timedelta(days=1)
+
+    return int((reset - now).total_seconds() + SESSION_LIMIT_BUFFER)
+
+
+def check_for_retry(stdout: str, returncode: int, attempt: int = 1) -> tuple[bool, int]:
+    """
+    Check if we should retry.
+    Returns (should_retry, wait_seconds).
+    """
+    # Success
+    if returncode == 0:
+        return False, 0
+
+    # Session limit with specific reset time
+    if "Session limit reached" in stdout:
+        wait = parse_reset_time(stdout)
+        if wait > 0:
+            print(f"⏳ Session limit - waiting until reset ({wait//60} minutes)")
+            return True, wait
+        else:
+            # Couldn't parse time, use default
+            print(f"⏳ Session limit - waiting {DEFAULT_SESSION_LIMIT_WAIT//60} minutes")
+            return True, DEFAULT_SESSION_LIMIT_WAIT
+
+    # Network/transient errors
+    if any(err in stdout.lower() for err in NETWORK_ERROR_KEYWORDS):
+        wait = min(NETWORK_RETRY_BASE * (2 ** (attempt - 1)), NETWORK_RETRY_MAX)
+        print(f"⚠️  Network error - waiting {wait}s (attempt {attempt})")
+        return True, wait
+
+    # Other errors - exponential backoff
+    wait = min(OTHER_RETRY_BASE * (2 ** (attempt - 1)), OTHER_RETRY_MAX)
+    print(f"⚠️  Error (code {returncode}) - waiting {wait}s (attempt {attempt})")
+    return True, wait
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Atom: Minimal autonomous Claude Code orchestrator",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "prompt",
+        nargs="*",
+        help="Optional prompt text to create USER_PROMPT.md"
+    )
+    parser.add_argument(
+        "--toolname",
+        type=str,
+        default=None,
+        help="Tool name to load specialized prompts (e.g., 'atom_my_tool' or 'my_tool')"
+    )
+    return parser.parse_args()
+
+
+def handle_command_line_prompt(prompt_args):
+    """Create USER_PROMPT.md from command line arguments if provided."""
+    if prompt_args:
+        prompt_text = " ".join(prompt_args)
+        prompt_file = Path("USER_PROMPT.md")
+        prompt_file.write_text(prompt_text)
+        print(f"📝 Created USER_PROMPT.md with provided prompt\n")
+
+
+def validate_user_prompt():
+    """Ensure USER_PROMPT.md exists in current directory."""
+    prompt_file = Path("USER_PROMPT.md")
+    if not prompt_file.exists():
+        print("❌ USER_PROMPT.md not found in current directory")
+        print("Usage: atom [prompt text]")
+        print("   or: create USER_PROMPT.md manually and run: atom")
+        sys.exit(1)
+
+
+def setup_atoms_environment():
+    """Ensure ~/cc_atoms directory structure exists and bin is in PATH."""
+    import os
+
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    TOOLS_DIR.mkdir(parents=True, exist_ok=True)
+    PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    if str(BIN_DIR) not in os.environ.get('PATH', ''):
+        os.environ['PATH'] = f"{BIN_DIR}:{os.environ['PATH']}"
+
+
+def main():
+    # Parse command line arguments
+    args = parse_arguments()
+
+    # Setup phase
+    handle_command_line_prompt(args.prompt)
+    validate_user_prompt()
+    setup_atoms_environment()
+
+    print(f"🔬 Atom: {Path.cwd().name}\n")
+
+    # Load system prompt based on toolname (if provided)
+    system_prompt = load_system_prompt(args.toolname)
+
+    for iteration in range(1, MAX_ITERATIONS + 1):
+        print(f"{'='*60}\nIteration {iteration}/{MAX_ITERATIONS}\n{'='*60}\n")
+
+        # Build prompt (context accumulation handled by -c flag)
+        prompt = system_prompt.format(max_iterations=MAX_ITERATIONS)
+
+        # Run with retry (infinite retries)
+        attempt = 0
+        while True:
+            attempt += 1
+            stdout, returncode = run_claude(prompt)
+            should_retry, wait_seconds = check_for_retry(stdout, returncode, attempt)
+
+            if not should_retry:
+                break
+
+            time.sleep(wait_seconds)
+
+        print(stdout)
+
+        # Check completion
+        if EXIT_SIGNAL in stdout:
+            print(f"\n✅ Complete after {iteration} iterations")
+            return 0
+
+        time.sleep(1)
+
+    print(f"\n⚠️  Max iterations reached")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,16 @@
+#!/bin/bash
+# Wrapper script for home-indexer using chromadb venv
+# This uses Python 3.9 venv where chromadb is installed
+
+VENV_PYTHON="/Users/tonyjabroni/.venvs/chromadb-env/bin/python"
+
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "Error: chromadb venv not found at $VENV_PYTHON"
+    echo "Create it with:"
+    echo "  /usr/bin/python3 -m venv ~/.venvs/chromadb-env"
+    echo "  ~/.venvs/chromadb-env/bin/pip install chromadb"
+    echo "  ~/.venvs/chromadb-env/bin/pip install -e ~/claude/cc"
+    exit 1
+fi
+
+exec "$VENV_PYTHON" -m cc_atoms.tools.multi_db_agent.home_indexer "$@"

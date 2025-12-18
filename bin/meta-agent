@@ -1,0 +1,12 @@
+#!/bin/bash
+# Meta-Agent: Self-evolving autonomous system
+# Uses chromadb venv for compatibility
+
+VENV_PYTHON="$HOME/.venvs/chromadb-env/bin/python"
+
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "Error: chromadb venv not found at $VENV_PYTHON"
+    exit 1
+fi
+
+exec "$VENV_PYTHON" -m cc_atoms.tools.multi_db_agent.meta_agent "$@"
