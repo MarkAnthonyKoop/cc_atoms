@@ -1,0 +1,11 @@
+{
+  "midi_path": "/mnt/d/downloads/suno_stems/fog/transcribed/fog_guitar_basic_pitch.mid",
+  "key": "e minor",
+  "tempos_bpm": [
+    120
+  ],
+  "note_count": 1376,
+  "part_count": 1,
+  "duration_quarter_notes": 594.0,
+  "instrument_hint": "guitar"
+}
