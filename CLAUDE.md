@@ -1,73 +1,81 @@
 # CLAUDE.md — cc_atoms
 
-AI-only notes for modifying cc_atoms itself. Universal rules in `~/CLAUDE.md`; workspace rules in `~/claude/CLAUDE.md`. Do not restate them here.
+You are Claude Code, in the cc_atoms directory. Quiet notes for the work you'll be asked to do here. Universal rules live in `~/CLAUDE.md`; the workspace's rules in `~/claude/CLAUDE.md`; this file adds only what's specific to this project.
 
 ---
 
-## File roles (do not conflate)
+## If the user is asking you to install cc_atoms
 
-| File | Role |
+Read [`INSTALLATION.md`](INSTALLATION.md) and do what it describes. The user may ask in any words — *"install cc_atoms"*, *"set it up with the auditor"*, *"reinstall but force-overwrite my customized ATOM.md"*, *"show me what would change before doing it"*. The recipes in `INSTALLATION.md` cover the common ones; anything reasonable beyond that is just file operations against your existing tools.
+
+Two rules that override convenience:
+
+- **Back up before overwriting.** Before any `ATOM.md`, `CLAUDE.md`, or `INDEX.md` is touched, copy the existing file to `/mnt/d/downloads/cc_atoms/<UTC-timestamp>/<original-absolute-path>` so the original survives. Skip only if the user explicitly says to skip. One timestamp directory per install run.
+
+- **Idempotent.** Running an install twice with no other changes between them must change nothing the second time. If your install would do anything on the second run, find out why and fix the install — don't just call it expected.
+
+---
+
+## If the user is editing the cc_atoms project itself
+
+The files in this directory have distinct roles. Don't blur them:
+
+| File | What it is for |
 |---|---|
-| `ATOM.md` | **The contract.** Source of truth for the convention. Do not duplicate its content in README or here. |
-| `install.sh` | **The installer.** Copies ATOM.md, patches CLAUDE.md sentinel, optionally refreshes INDEX.md (only with `--discover`). Every overwrite is backed up first. |
-| `README.md` | **Docs.** Human-facing: user manual, reference, architecture, status. Links to ATOM.md; does not restate it. |
-| `CLAUDE.md` | This file. AI-facing notes for modifying cc_atoms. |
+| `ATOM.md` | The contract. The source of truth for the convention. Don't restate its content in `README.md` or here. |
+| `INSTALLATION.md` | English recipes for installing. Read by Claude Code at install time. The auditor scripts live in here as fenced code blocks Claude writes to disk on request. |
+| `README.md` | Human-facing: what cc_atoms is, how to install in one line, a worked example, troubleshooting. |
+| `CLAUDE.md` | This file. AI-facing notes for editing cc_atoms. |
+| `LICENSE` | MIT. |
 
-## The sentinel block (idempotency rule)
+If you're tempted to add a sixth file, ask first. The flat layout is load-bearing — it's the thing that makes "five files, no subdirectories" a real adoption sell. The next subdirectory will not be the last one.
 
-`install.sh` patches `<root>/CLAUDE.md` with a block delimited by:
+---
+
+## The sentinel block (what makes installs idempotent)
+
+`INSTALLATION.md` instructs you to patch the user's `~/CLAUDE.md` with this block, exactly:
 
 ```
 <!-- atom:begin -->
-...
+### Autonomous recursion — the atom convention
+
+When work is autonomous (recursion, parallel fan-out, multi-directory), use the **atom** convention. The contract is `<root>/ATOM.md` — read it for per-directory structure, recursion rule, spawning, status discipline, and the optional auditor. Discovered tools available to atom workers are indexed at `<root>/INDEX.md`.
 <!-- atom:end -->
 ```
 
-Detection order:
-1. If sentinels exist → sed-replace between them (idempotent).
-2. Else if old heading `### Autonomous recursion — the \`atom\` convention` exists → replace section up to next `---`.
-3. Else → append at end.
+Detect what's already there before patching:
 
-Running `install.sh` twice must produce the same `CLAUDE.md`. If you change the sentinel block content in `install.sh`, bump a comment in `install.sh` explaining why — the block is load-bearing.
+1. If the sentinels exist, replace what's between them.
+2. If an old, sentinel-less heading like `### Autonomous recursion — the atom convention` exists, replace from that heading down to the next horizontal rule (`---`) or the end of the file.
+3. Otherwise, append the whole block at the end.
 
-## Constraint: no subdirectories may be reintroduced
+If the block on disk already matches exactly, do nothing. That's how a second install becomes a no-op.
 
-cc_atoms is intentionally flat: four files, no subdirs. If a future feature seems to need `agents/`, `bin/`, `commands/`, `skills/`, `hooks/`, or `templates/`, push back:
-- Registered subagent → atom mode is a behavior in `ATOM.md`, not a file.
-- CLI launcher → users invoke atom mode by telling Claude to read `~/ATOM.md`.
-- Templates → templates live in `ATOM.md` § Per-directory templates.
-- Hooks / settings → out of scope; document as a future concern in README if needed.
+---
 
-If a feature genuinely requires a new file at this level, it must be a single flat file (not a subdir) and must be justified in a comment at the top of that file.
+## v1 lives elsewhere
+
+The pre-v2 Python orchestrator (iteration loop, retry manager, complexity analyzer, meta-agent dispatcher, EXIT_LOOP_NOW sentinel, `cc` CLI clone) is archived at `~/claude/cc_atoms_v1/` locally and at [`github.com/MarkAnthonyKoop/cc_atoms_v1`](https://github.com/MarkAnthonyKoop/cc_atoms_v1) remotely. It's for archaeology. Don't import from it. Don't reference it from here except to say "that's where it went."
+
+---
 
 ## Smoke test
 
+After any change to this project, run this from `~/claude/cc_atoms/`:
+
 ```bash
-# Install artifacts
-diff -q ~/ATOM.md ~/claude/cc_atoms/ATOM.md && echo "ATOM.md byte-identical"
-grep -cF '<!-- atom:begin -->' ~/CLAUDE.md && echo "sentinel present in ~/CLAUDE.md"
+# Files at the right level
+ls | grep -vE '^(ATOM\.md|INSTALLATION\.md|CLAUDE\.md|README\.md|LICENSE)$' \
+    && echo "UNEXPECTED FILES" \
+    || echo "flat layout intact"
 
-# Project layout — flat: only ATOM.md, CLAUDE.md, LICENSE, README.md, install.sh (+ .git)
-ls ~/claude/cc_atoms/ | grep -vE '^(ATOM\.md|CLAUDE\.md|LICENSE|README\.md|install\.sh)$' \
-  && echo "UNEXPECTED FILES" || echo "flat as expected"
+# Contract is byte-identical between repo and install root (if installed)
+[ -f ~/ATOM.md ] && diff -q ~/ATOM.md ATOM.md && echo "ATOM.md byte-identical at install root"
 
-# Idempotency — re-running must be a no-op
-~/claude/cc_atoms/install.sh
+# Sentinel block exists in user's top-level CLAUDE.md (if installed)
+[ -f ~/CLAUDE.md ] && grep -cF '<!-- atom:begin -->' ~/CLAUDE.md && echo "sentinel present"
+
+# Idempotency: ask Claude to install again, observe that nothing changes
+# (run claude in this dir, say "install cc_atoms again" — there should be zero file modifications)
 ```
-
-## v1 archive
-
-`~/claude/cc_atoms_v1/` — archaeology only. Its `task_analyzer.py`, `runtime.py`, EXIT_LOOP_NOW sentinel, and `cc` CLI clone are superseded. Do not import or reference them from here.
-
-## Discovery is opt-in and non-destructive
-
-Discovery only runs when `install.sh --discover` is passed. The earlier behavior — running discovery on every install and overwriting `~/INDEX.md` with a stub on failure — was destructive and surprised users. The current rule:
-
-- No `--discover` → INDEX.md is not touched at all.
-- `--discover` + INDEX.md exists → prompt tells claude to **edit** in place (keep accurate rows, add new projects, remove dead ones). Existing INDEX.md is backed up first.
-- `--discover` + INDEX.md absent → claude writes a fresh table.
-- `--discover` + discovery times out / fails → INDEX.md is left untouched. Log at `/tmp/atom_discovery.log`.
-
-## Backups
-
-`install.sh` backs up any file before overwriting or in-place patching it. Backup root: `/mnt/d/downloads/cc_atoms/<UTC-timestamp>/<original-absolute-path>`. One timestamp per install run. The summary line prints the backup directory when any backup was made. If you modify the script's destructive paths, route them through `backup_file` first.

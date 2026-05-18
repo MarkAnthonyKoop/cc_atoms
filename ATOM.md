@@ -1,152 +1,137 @@
 # ATOM.md — the convention
 
-This file teaches Claude Code an **autonomous mode** for hierarchical, massively parallel work. There is no Python, no registered agent, no install beyond placing this file (and a one-block pointer in CLAUDE.md) at the top of your workspace.
+You are Claude Code. Someone has asked you to operate **in atom mode**, or you've landed in a directory that holds a `USER_PROMPT.md` and a sibling `README.md` with a `Status` block. Either way, what follows is how the work goes.
 
-When you are told to "operate in atom mode" or you find a directory containing `USER_PROMPT.md`, follow this convention.
-
----
-
-## The three artifacts in every atom directory
-
-```
-<cwd>/
-├── USER_PROMPT.md   ← task for this directory (input — read first, never modify)
-├── README.md        ← user guide + reference + architecture + Status (durable)
-├── CLAUDE.md        ← AI-only notes for this dir and below (no duplication with README)
-└── <work>           ← code, subdirs, deliverables
-```
-
-If `README.md` or `CLAUDE.md` is missing on entry, bootstrap them from the templates at the end of this file.
-
-`README.md` structure:
-1. **User manual** (top) — quickstart for a human entering this dir
-2. **Reference** (middle) — every interface this dir exposes
-3. **Architecture** (bottom) — why the splits are where they are
-4. **Status** (the only mutable block) — one of `IN_PROGRESS / DELEGATED / BLOCKED / COMPLETE`, plus Done / Next / Delegated lists
+This file is short on purpose. The work is yours; the rules are few.
 
 ---
 
-## Spawning copies of yourself
+## What an atom is
 
-Atom mode is built on **Claude spawning Claude**. Three flavors:
+An atom is one directory doing one job.
 
-### 1. In-session subagents — parent waits for child
+In the directory, three files speak for the work:
 
-Use the `Agent` tool. The child runs in a fresh context window; the parent sees only the return summary.
+- **`USER_PROMPT.md`** — the task that brought you here. Read it. Don't change it. It's a handoff from whoever spawned this atom (a parent atom, or the person who started the run). If a person is at the keyboard talking to you instead, there's no `USER_PROMPT.md` and there doesn't need to be — *the conversation is the task.*
+
+- **`README.md`** — what a human reading later will want to know. A short user guide on top, a reference section in the middle, an architecture note at the bottom, and a `Status` block that you keep accurate as you work. The `Status` block is the only part that changes often.
+
+- **`CLAUDE.md`** — what a future Claude in this directory will need to know that isn't already in `README.md` or visible in the code. Quiet notes: the workaround you had to use, the constraint that isn't enforced, the credential that's already cached.
+
+If `README.md` or `CLAUDE.md` is missing when you arrive, write them from the templates at the end of this file. Bootstrap them once, then keep them current. Don't write a long `README.md` for a small dir; match the length to the work.
+
+---
+
+## When the work is bigger than one atom
+
+Split it into pieces, give each piece a directory, and hand each one to a child.
+
+The rule is one piece, one directory, one child atom. If a subtask is genuinely independent of its siblings, spawn them all at once and let them run in parallel.
+
+There are three ways to spawn a child. Pick the one that fits.
+
+### Through the Agent tool — when you need the result back this turn
 
 ```
 Agent(
   description: "<subdir> atom",
-  prompt: "You are an atom. cd to <abs path to subdir>. Read ~/ATOM.md and USER_PROMPT.md. Execute the work, keep README.md Status accurate. Return a one-paragraph summary."
+  prompt: "You are an atom. cd to <abs path to subdir>. Read ~/ATOM.md and USER_PROMPT.md. Do the work. Keep README.md Status accurate. Return a one-paragraph summary."
 )
 ```
 
-For parallel sub-work, issue **multiple Agent tool calls in a single message** — the harness runs them concurrently.
+The child runs in its own context window. You see only its summary. To fan out, issue many Agent calls in a single message — they run together.
 
-### 2. Detached processes — massive parallel, fire-and-forget
+### As a detached `claude` process — when you want it to outlive this turn
 
-When you need 10+ workers or want them to outlive this session:
-
-```bash
-cd <subdir> && env -u ANTHROPIC_API_KEY claude --dangerously-skip-permissions --model opus -p "Operate as an atom per ~/ATOM.md and USER_PROMPT.md here." >/tmp/atom_<id>.log 2>&1 &
+```
+cd <subdir> && env -u ANTHROPIC_API_KEY claude --dangerously-skip-permissions --model opus \
+    -p "Operate as an atom per ~/ATOM.md and USER_PROMPT.md here." \
+    > /tmp/atom_<id>.log 2>&1 &
 ```
 
-Each is a separate OS process with its own conversation. The parent doesn't see results directly — the auditor (below) reconciles state via the README.md Status files.
+Two flags are load-bearing. `env -u ANTHROPIC_API_KEY` strips a variable that the harness exports into subprocesses; if you leave it in place, the child quietly switches to API billing and fails with *"Credit balance is too low."* `--dangerously-skip-permissions` lets the non-interactive child auto-accept the permission prompts it would otherwise hang on. Opus is the right default for atom work; sonnet is fine for light leaves.
 
-**Both flags are load-bearing:**
-- `env -u ANTHROPIC_API_KEY` — Claude Code's harness exports `ANTHROPIC_API_KEY` into subprocess env. The interactive CLI ignores it and uses Claude Max OAuth from `~/.claude/.credentials.json`, but any child `claude -p` invocation that inherits the env switches to API billing — and if that account has no credit, every spawn fails with `Credit balance is too low`. Stripping the env var forces the OAuth path.
-- `--dangerously-skip-permissions` — `-p` is non-interactive, so any permission prompt blocks the process forever. This flag auto-accepts.
+### As a resumed conversation — when picking up a paused atom
 
-`--model opus` is optional but recommended for atom work.
-
-### 3. Resuming a stalled conversation
-
-```bash
-env -u ANTHROPIC_API_KEY claude --dangerously-skip-permissions --model opus --resume <conv-id> -p "Continue per <pointer to relevant file or fact>"
+```
+env -u ANTHROPIC_API_KEY claude --dangerously-skip-permissions --resume <conv-id> \
+    -p "Continue per <pointer to the relevant file or fact>."
 ```
 
-`<conv-id>` is the UUID of an existing conversation under `~/.claude/projects/<slug>/`. Use to revive a paused atom rather than starting fresh.
+The conversation id lives under `~/.claude/projects/<slug>/`. Use this to wake a stalled atom rather than starting it fresh.
 
 ---
 
-## Recursion rule
+## Recursion, briefly
 
-If `USER_PROMPT.md` is bigger than one coherent session, decompose **by directory, not by Python loop**:
+If the task is bigger than one atom can comfortably do in one session, decompose it by directory — not by Python loop, not by long single conversation.
 
-1. Pick 2–N subtasks (more if genuinely independent — fan-out arbitrarily wide).
-2. For each: `mkdir <subdir>`, write `<subdir>/USER_PROMPT.md`.
-3. Spawn a child atom for each (see "Spawning copies of yourself").
-4. Update *this* directory's `README.md` Status `Delegated` list with one line per child.
-5. When children return summaries, append them to Status; do not touch the child's files — the child owns them.
-6. Integrate, test, and document the result here.
+For each piece of the work:
 
-Context isolation is automatic — each child is a fresh window, so the parent context stays clean regardless of tree depth.
+1. Make a subdirectory.
+2. Write its `USER_PROMPT.md`.
+3. Spawn a child atom against it (any of the three patterns above).
+4. Record the delegation in *this* atom's `README.md` `Status` block.
+5. When the child returns its summary, fold the summary into your `Status` block. Don't reach into the child's directory and rewrite its files — the child owns its files.
+
+Context isolation is automatic. Each child gets its own fresh window. Yours stays clean no matter how deep the tree goes.
 
 ---
 
 ## Status discipline
 
-Every meaningful change updates `README.md`'s Status section. Keep three short lists inside it:
+The `Status` block in `README.md` is your single source of truth for "where this atom is right now." Keep it short, current, and honest.
 
-- **Done** — what was actually completed and verified this session
-- **Next** — concrete next steps
-- **Delegated** — `<subdir>/` → one-line description + child's current status
+Use one of four words for the top of the block:
 
-Status values:
-- `IN_PROGRESS` — still working here
-- `DELEGATED` — children doing the work; waiting for or integrating their summaries
-- `BLOCKED` — needs the user or an external dependency (be specific about what)
-- `COMPLETE` — done, verified
+- **`IN_PROGRESS`** — still working here.
+- **`DELEGATED`** — children are doing the work; waiting on or folding in their summaries.
+- **`BLOCKED`** — needs the user or an external thing. Name the thing.
+- **`COMPLETE`** — done, verified.
 
----
+Under the word, three short lists: what you finished and verified this session (`Done`), what comes next (`Next`), what you handed to children (`Delegated`, with one line per child and that child's current state).
 
-## When to stop
-
-- `USER_PROMPT.md` is satisfied → Status `COMPLETE`, return.
-- Subtasks delegated, in flight elsewhere → Status `DELEGATED`, return.
-- External blocker → Status `BLOCKED` with what's needed, return.
-
-One pass per invocation. Re-invoke for more iterations. There is no `EXIT_LOOP_NOW` sentinel, no complexity analyzer, no iteration counter.
+You return when the task is satisfied, when the work has been handed off, or when something outside this dir is in the way. One pass per invocation. If more iterations are needed, the user (or an auditor — see below) re-invokes you.
 
 ---
 
-## Discovering existing tools
+## Tools that already exist
 
-When useful work depends on tools that already exist on this machine, consult `<install-root>/INDEX.md` — the discovered-tools index, populated by `install.sh` and user-editable thereafter. Prefer extending an indexed tool over building parallel functionality.
-
-If the tool you need is not below the install root, the user must tell you about it — either by editing `INDEX.md` or by including a pointer in `USER_PROMPT.md`.
+Before you build something, check `<install-root>/INDEX.md`. It's a one-line-per-project map of what's already on this machine. atom mode workers consult it to avoid reinventing what's already written. If a tool lives outside the install root, the user has to tell you about it — either by editing `INDEX.md` or by mentioning it in `USER_PROMPT.md`.
 
 ---
 
-## The auditor pattern (optional, for long-running hierarchies)
+## When a tree of atoms runs for a long time
 
-If a tree of atoms is running for hours or days and you need self-healing, kick off an auditor in a separate session:
+For most work, a single atom — or a small tree — finishes inside one Claude session and you're done. For runs that span hours or days, with many children and real risk that a node will time out or hit a usage limit, there's an optional **auditor** that lives in its own directory beside the work, wakes every fifteen or thirty minutes, walks the tree, and respawns anything that's gone quiet without finishing.
 
-```
-loop 20m 'audit the atom tree at <root>: walk all README.md Status files; ps-grep running claude processes; respawn IN_PROGRESS atoms with no live process via claude -c <id>; start fresh atoms for BLOCKED-but-actionable dirs with prompts pointing at relevant files/convs; write a one-page dashboard to <root>/AUDIT.md'
-```
-
-The auditor is itself an atom in a single directory (e.g. `~/work/_audit/`) with its own `USER_PROMPT.md` describing scope and cadence. Use the `loop` skill (or cron) to wake it.
-
-Not auto-started by `install.sh`. Spin up when you need it.
+The auditor is itself an atom. You don't have to build it from scratch — see `INSTALLATION.md` in the cc_atoms repo for the materials, and ask Claude Code to set it up for you when you're starting a long run.
 
 ---
 
-## Per-directory templates
+## Why this fits in one file
 
-### README.md template
+Earlier versions of cc_atoms shipped thousands of lines: an iteration loop, a retry manager, a complexity analyzer, a memory layer, a meta-agent dispatcher, a quality gate, an exit-loop sentinel. Each of those pieces had a job. Claude Code now does each of those jobs natively — the Agent tool, hooks, the SDK, the `CLAUDE.md` cascade. The orchestration code became redundant.
+
+What was left is what you're reading: the convention.
+
+---
+
+## Templates
+
+### `README.md` for a fresh atom directory
 
 ```markdown
 # <dir name>
 
 ## User manual
-<one-paragraph quickstart for a human entering this directory>
+<one short paragraph: what does this dir do, how does a human use it>
 
 ## Reference
-<every CLI / function / file contract this dir exposes>
+<every CLI flag, function signature, or file contract this dir exposes>
 
 ## Architecture
-<why the splits are where they are, what belongs here vs siblings>
+<why the splits are where they are; what belongs here vs. a sibling>
 
 ## Status
 **IN_PROGRESS** — atom session started.
@@ -161,29 +146,13 @@ Not auto-started by `install.sh`. Spin up when you need it.
 - (none)
 ```
 
-### CLAUDE.md template
+### `CLAUDE.md` for a fresh atom directory
 
 ```markdown
 # CLAUDE.md — <dir name>
 
-AI-only notes for this directory and below. Do not duplicate README.md.
+Quiet notes for the next Claude in this directory. Don't duplicate README.md.
 
-- (decomposition decisions, scoped credentials, fragile workarounds, smoke-test commands)
+- (decomposition decisions, cached credentials scoped to this dir,
+  fragile workarounds and why, the smoke-test command)
 ```
-
----
-
-## Rationale (why this is just one file)
-
-Every piece of orchestration that earlier atom frameworks (cc_atoms v1 Python, v2 with registered subagent) used to do has been absorbed by Claude Code natively:
-
-| Old component | Native replacement |
-|---|---|
-| Python iteration loop | `Agent` tool + spawned `claude -p` processes |
-| Registered subagent file | This file — atom mode is a behavior, not an installable agent |
-| Decomposition planner | The atom itself, when told to delegate |
-| Quality-gate red flags | Atom checks its own work before marking `COMPLETE` |
-| Memory injection | `CLAUDE.md` cascade + auto memory |
-| Retry / rate-limit | Built into the CLI |
-
-What's left is the convention — and it fits in this file.
