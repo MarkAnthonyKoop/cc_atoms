@@ -145,10 +145,10 @@ What was left is what you're reading: the convention.
 <one short paragraph: what does this dir do, how does a human use it>
 
 ## Reference
-<every CLI flag, function signature, or file contract this dir exposes>
+<every CLI flag, function signature, or file contract this dir exposes — or, for a single-script atom where the user manual already covers everything: "see User manual above">
 
 ## Architecture
-<why the splits are where they are; what belongs here vs. a sibling>
+<why the splits are where they are; what belongs here vs. a sibling — or, for a single-file leaf where there are no splits: "n/a — single file">
 
 ## Status
 **IN_PROGRESS** — atom session started.
@@ -162,6 +162,8 @@ What was left is what you're reading: the convention.
 ### Delegated
 - (none)
 ```
+
+Match the section depth to the work. A small leaf can fold `Reference` into `User manual` and skip `Architecture`; a large dir with many sub-modules earns the full structure.
 
 ### `CLAUDE.md` for a fresh atom directory
 
