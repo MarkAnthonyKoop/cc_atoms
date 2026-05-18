@@ -73,4 +73,12 @@ If atom mode is decomposing too aggressively for the task at hand, tell it so: *
 
 ## Status
 
-cc_atoms v2.1 — contract-only, installer-as-conversation, prose rewritten 2026-05-18. Stable. The contract has been exercised end-to-end on a one-hundred-and-fifteen-directory autonomous run; the install is idempotent and reversible; the auditor recipe has caught and revived real collapsed atoms across real usage-limit interruptions. If you adopt it and something doesn't fit, the prose is at fault — open an issue or just edit it.
+cc_atoms v2.4 — contract-only, installer-as-conversation, prose iterated on real reader feedback. **Stable.**
+
+Two kinds of evidence stand behind that word.
+
+The contract has been exercised end-to-end on a one-hundred-and-fifteen-directory autonomous run (the rocket league experiment described above), where the auditor recipe revived collapsed atoms across multiple Claude Max usage-limit interruptions. The install is idempotent and reversible. Every overwrite is mirrored to a timestamped backup directory before the change.
+
+The prose has been iterated against real readers — fresh Claude Code atoms reading `ATOM.md` cold and building things: pong, snake, blackjack, tetris, a duplicate-file finder. Each test surfaced exactly the points where the prose was unclear; each clarification went into the next version. The fix-count per test ran 4 → 6 → 2 → 0 → 0 — diminishing returns, then convergence. The last two tests ran without an explicit "rate the doc" hook in their prompt, and the atoms volunteered nothing. That's the signal the doc is invisible to a working reader, which is what good prose does.
+
+If you adopt it and something doesn't fit, the prose is at fault — open an issue or just edit it.
