@@ -16,7 +16,7 @@ git clone https://github.com/MarkAnthonyKoop/cc_atoms ~/claude/cc_atoms
 ~/claude/cc_atoms/install.sh
 ```
 
-That copies `ATOM.md` to `~/ATOM.md`, patches `~/CLAUDE.md` with a sentinel-delimited pointer, and runs a discovery pass to populate `~/INDEX.md`.
+That copies `ATOM.md` to `~/ATOM.md` and patches `~/CLAUDE.md` with a sentinel-delimited pointer. Discovery (populating `~/INDEX.md`) is opt-in via `--discover` — see Reference below.
 
 ### Use atom mode
 
@@ -48,10 +48,11 @@ cat README.md       # Status section is the live log
 
 | Flag | Effect |
 |---|---|
-| *(none)* | Install to `~` (where user-level `CLAUDE.md` lives) |
+| *(none)* | Install to `~` (where user-level `CLAUDE.md` lives). Skips discovery. |
 | `--root <path>` | Use a different install root |
-| `--extra-path <path>` | Extra dirs for INDEX.md discovery (repeatable) |
-| `--force` | Overwrite `<root>/ATOM.md` even if it differs |
+| `--extra-path <path>` | Extra dirs for INDEX.md discovery (repeatable; meaningful only with `--discover`) |
+| `--force` | Overwrite `<root>/ATOM.md` even if it differs (previous contents backed up first) |
+| `--discover` | Refresh `<root>/INDEX.md` via `claude -p`. Edits existing INDEX.md in place if present; creates fresh if absent. Off by default because discovery is slow and AI-billed, and a stale INDEX.md is more useful than a missing one. |
 
 ### Files placed at install root
 
@@ -77,7 +78,15 @@ Idempotent: running `install.sh` twice produces the same result.
 
 ### Discovery
 
-`install.sh` runs `claude -p "<discovery prompt>"` (timeout 60s). The prompt asks Claude to scan `<root>` (plus `--extra-path` dirs), find project directories by markers (`.git`, `pyproject.toml`, `package.json`, `README.md`), and write `<root>/INDEX.md`. If `claude` is unavailable or times out, a stub INDEX.md is written with the manual-run command.
+Opt-in via `--discover`. Runs `claude -p "<discovery prompt>"` with a 300s timeout (uses `--model sonnet`).
+
+- If `<root>/INDEX.md` **already exists**, the prompt instructs Claude to **edit it in place**: keep accurate rows, add new projects, remove dead ones, preserve human-authored prose.
+- If `<root>/INDEX.md` does **not** exist, Claude writes a fresh markdown table modeled on `~/claude/INDEX.md`.
+- If discovery **fails or times out**, the existing `<root>/INDEX.md` is **left untouched** (the destructive "overwrite with stub on failure" behavior of earlier versions is gone). The error log is at `/tmp/atom_discovery.log`.
+
+### Backups
+
+Every overwrite or in-place patch backs the original up first. Backup root: `/mnt/d/downloads/cc_atoms/<UTC-timestamp>/<original-absolute-path>`. One timestamp per install run. The summary line at the bottom of `install.sh` output prints the backup directory when any backup was made.
 
 ### INDEX.md format
 
@@ -116,16 +125,15 @@ Adding any of these back conflates the convention with an engine. The v2 philoso
 
 ## Status
 
-**COMPLETE** — refactored 2026-05-16.
+**COMPLETE** — refactored 2026-05-16, hardened 2026-05-17.
 
 ### Done
 - Deleted `agents/`, `bin/`, `commands/`, `skills/`, `hooks/`, `templates/` from cc_atoms
 - Removed symlinks: `~/.claude/agents/atom.md`, `~/.claude/commands/atom.md`, `~/.claude/commands/atom-status.md`, `~/.local/bin/atom`
-- Rewrote `install.sh` (127 lines): `--root`, `--extra-path`, `--force`; copies ATOM.md; patches sentinel block; runs discovery
-- Rewrote `README.md` (this file, ≤200 lines)
-- Rewrote `CLAUDE.md` (≤100 lines)
+- Rewrote `README.md` (this file, ≤200 lines) and `CLAUDE.md` (≤100 lines)
 - Updated `~/claude/INDEX.md` cc_atoms entry to contract-first framing
-- Ran `./install.sh`: `~/ATOM.md` placed (byte-identical), `~/CLAUDE.md` patched (old 21-line section replaced with sentinel block), `~/INDEX.md` stub written (claude CLI invocation timed out / was not available for headless discovery)
+- Initialized git in this directory; pushed v2 to `github.com/MarkAnthonyKoop/cc_atoms` (HEAD is v2; v1 history preserved in the log). v1 also archived to its own repo `github.com/MarkAnthonyKoop/cc_atoms_v1`.
+- Hardened `install.sh`: discovery is opt-in (`--discover`), INDEX.md is edited in place when present, every overwrite is backed up to `/mnt/d/downloads/cc_atoms/<UTC>/...`, discovery failure no longer destroys an existing INDEX.md, timeout bumped to 300s, default model is `sonnet`.
 
 ### Next
 - (nothing — task complete)

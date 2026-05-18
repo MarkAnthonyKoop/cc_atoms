@@ -9,7 +9,7 @@ AI-only notes for modifying cc_atoms itself. Universal rules in `~/CLAUDE.md`; w
 | File | Role |
 |---|---|
 | `ATOM.md` | **The contract.** Source of truth for the convention. Do not duplicate its content in README or here. |
-| `install.sh` | **The installer.** Copies ATOM.md, patches CLAUDE.md sentinel, runs discovery. ~127 lines. |
+| `install.sh` | **The installer.** Copies ATOM.md, patches CLAUDE.md sentinel, optionally refreshes INDEX.md (only with `--discover`). Every overwrite is backed up first. |
 | `README.md` | **Docs.** Human-facing: user manual, reference, architecture, status. Links to ATOM.md; does not restate it. |
 | `CLAUDE.md` | This file. AI-facing notes for modifying cc_atoms. |
 
@@ -43,19 +43,31 @@ If a feature genuinely requires a new file at this level, it must be a single fl
 ## Smoke test
 
 ```bash
-# Verify install artifacts
-diff ~/ATOM.md ~/claude/cc_atoms/ATOM.md && echo "ATOM.md byte-identical"
-grep -c 'atom:begin' ~/CLAUDE.md && echo "sentinel present in ~/CLAUDE.md"
-grep -v 'atom.*command\|/atom\|atom-status\|cc_atoms v2\|subagent_type=atom' ~/CLAUDE.md | grep -c 'atom' || true
+# Install artifacts
+diff -q ~/ATOM.md ~/claude/cc_atoms/ATOM.md && echo "ATOM.md byte-identical"
+grep -cF '<!-- atom:begin -->' ~/CLAUDE.md && echo "sentinel present in ~/CLAUDE.md"
 
-# Verify cc_atoms is flat
-ls ~/claude/cc_atoms/ | grep -v '\.md\|install\.sh' && echo "UNEXPECTED FILES" || echo "flat: only .md + install.sh"
+# Project layout — flat: only ATOM.md, CLAUDE.md, LICENSE, README.md, install.sh (+ .git)
+ls ~/claude/cc_atoms/ | grep -vE '^(ATOM\.md|CLAUDE\.md|LICENSE|README\.md|install\.sh)$' \
+  && echo "UNEXPECTED FILES" || echo "flat as expected"
+
+# Idempotency — re-running must be a no-op
+~/claude/cc_atoms/install.sh
 ```
 
 ## v1 archive
 
 `~/claude/cc_atoms_v1/` — archaeology only. Its `task_analyzer.py`, `runtime.py`, EXIT_LOOP_NOW sentinel, and `cc` CLI clone are superseded. Do not import or reference them from here.
 
-## Discovery fallback
+## Discovery is opt-in and non-destructive
 
-If `claude -p` times out or fails during `install.sh`, a stub `~/INDEX.md` is written. The stub contains the manual command to run discovery. This is intentional — discovery is best-effort, not blocking.
+Discovery only runs when `install.sh --discover` is passed. The earlier behavior — running discovery on every install and overwriting `~/INDEX.md` with a stub on failure — was destructive and surprised users. The current rule:
+
+- No `--discover` → INDEX.md is not touched at all.
+- `--discover` + INDEX.md exists → prompt tells claude to **edit** in place (keep accurate rows, add new projects, remove dead ones). Existing INDEX.md is backed up first.
+- `--discover` + INDEX.md absent → claude writes a fresh table.
+- `--discover` + discovery times out / fails → INDEX.md is left untouched. Log at `/tmp/atom_discovery.log`.
+
+## Backups
+
+`install.sh` backs up any file before overwriting or in-place patching it. Backup root: `/mnt/d/downloads/cc_atoms/<UTC-timestamp>/<original-absolute-path>`. One timestamp per install run. The summary line prints the backup directory when any backup was made. If you modify the script's destructive paths, route them through `backup_file` first.
