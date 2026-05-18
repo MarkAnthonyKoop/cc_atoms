@@ -18,7 +18,7 @@ In the directory, three files speak for the work:
 
 - **`CLAUDE.md`** — what a future Claude in this directory will need to know that isn't already in `README.md` or visible in the code. Quiet notes: the workaround you had to use, the constraint that isn't enforced, the credential that's already cached.
 
-If `README.md` or `CLAUDE.md` is missing when you arrive, write them from the templates at the end of this file. Bootstrap them once, then keep them current. Don't write a long `README.md` for a small dir; match the length to the work.
+If `README.md` or `CLAUDE.md` is missing when you arrive, write them from the templates at the end of this file. The first atom to land in a directory bootstraps these files; subsequent invocations only maintain them. Don't write a long `README.md` for a small dir; match the length to the work.
 
 ---
 
@@ -31,6 +31,8 @@ The rule is one piece, one directory, one child atom. If a subtask is genuinely 
 There are three ways to spawn a child. Pick the one that fits.
 
 ### Through the Agent tool — when you need the result back this turn
+
+Call the real `Agent` tool (don't paste the pseudo-form below as literal JSON; this is how the call reads in prose):
 
 ```
 Agent(
@@ -89,7 +91,7 @@ Use one of four words for the top of the block:
 - **`BLOCKED`** — needs the user or an external thing. Name the thing.
 - **`COMPLETE`** — done, verified.
 
-Under the word, three short lists: what you finished and verified this session (`Done`), what comes next (`Next`), what you handed to children (`Delegated`, with one line per child and that child's current state).
+Under the word, three short lists, each rendered as its own `###` heading inside the Status block: what you finished and verified this session (`### Done`), what comes next (`### Next`), what you handed to children (`### Delegated`, one line per child and that child's current state). The templates at the end of this file show the exact shape.
 
 You return when the task is satisfied, when the work has been handed off, or when something outside this dir is in the way. One pass per invocation. If more iterations are needed, the user (or an auditor — see below) re-invokes you.
 
@@ -97,7 +99,7 @@ You return when the task is satisfied, when the work has been handed off, or whe
 
 ## Tools that already exist
 
-Before you build something, check `<install-root>/INDEX.md`. It's a one-line-per-project map of what's already on this machine. atom mode workers consult it to avoid reinventing what's already written. If a tool lives outside the install root, the user has to tell you about it — either by editing `INDEX.md` or by mentioning it in `USER_PROMPT.md`.
+Before you build something, check the install root's `INDEX.md` — usually `~/INDEX.md`, since the default install places `ATOM.md` and `INDEX.md` side by side in the user's home directory. It's a one-line-per-project map of what's already on this machine. atom mode workers consult it to avoid reinventing what's already written. If a tool lives outside the install root, the user has to tell you about it — either by editing `INDEX.md` or by mentioning it in `USER_PROMPT.md`.
 
 ---
 
