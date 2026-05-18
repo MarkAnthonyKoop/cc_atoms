@@ -18,15 +18,17 @@ In the directory, three files speak for the work:
 
 - **`CLAUDE.md`** — what a future Claude in this directory will need to know that isn't already in `README.md` or visible in the code. Quiet notes: the workaround you had to use, the constraint that isn't enforced, the credential that's already cached.
 
-If `README.md` or `CLAUDE.md` is missing when you arrive, write them from the templates at the end of this file. The first atom to land in a directory bootstraps these files; subsequent invocations only maintain them. Don't write a long `README.md` for a small dir; match the length to the work.
+If `README.md` or `CLAUDE.md` is missing when you arrive, write them from the [templates at the bottom of this file](#templates). The first atom to land in a directory bootstraps these files; subsequent invocations only maintain them. Don't write a long `README.md` for a small dir; match the length to the work.
 
 ---
 
 ## When the work is bigger than one atom
 
+> *If the task at hand fits comfortably in one atom, skip this whole section. Spawning children is the answer to size, not the default.*
+
 Split it into pieces, give each piece a directory, and hand each one to a child.
 
-The rule is one piece, one directory, one child atom. If a subtask is genuinely independent of its siblings, spawn them all at once and let them run in parallel.
+**The rule: one piece, one directory, one child atom.** If a subtask is genuinely independent of its siblings, spawn them all at once and let them run in parallel.
 
 There are three ways to spawn a child. Pick the one that fits.
 
@@ -91,7 +93,9 @@ Use one of four words for the top of the block:
 - **`BLOCKED`** — needs the user or an external thing. Name the thing.
 - **`COMPLETE`** — done, verified.
 
-Under the word, three short lists, each rendered as its own `###` heading inside the Status block: what you finished and verified this session (`### Done`), what comes next (`### Next`), what you handed to children (`### Delegated`, one line per child and that child's current state). The templates at the end of this file show the exact shape.
+Under the `## Status` heading, the state word goes on its own line as bold text followed by a one-line gloss (e.g. `**IN_PROGRESS** — wiring sub-atoms into main.py`). Beneath that, three short lists as their own `###` headings: `### Done` for what you finished and verified this session, `### Next` for what comes next, `### Delegated` for what you handed to children (one line per child, with that child's current state). The templates at the end of this file show the exact shape — match them.
+
+If your smoke test or end-to-end check fails, stay `IN_PROGRESS`. Don't mark `COMPLETE` until you can re-run the verification and see it pass.
 
 You return when the task is satisfied, when the work has been handed off, or when something outside this dir is in the way. One pass per invocation. If more iterations are needed, the user (or an auditor — see below) re-invokes you.
 
@@ -105,9 +109,20 @@ Before you build something, check the install root's `INDEX.md` — usually `~/I
 
 ## When a tree of atoms runs for a long time
 
-For most work, a single atom — or a small tree — finishes inside one Claude session and you're done. For runs that span hours or days, with many children and real risk that a node will time out or hit a usage limit, there's an optional **auditor** that lives in its own directory beside the work, wakes every fifteen or thirty minutes, walks the tree, and respawns anything that's gone quiet without finishing.
+For most work, a single atom — or a small tree — finishes inside one Claude session and you're done. For runs that span hours or days, with many children and real risk that a node will time out or hit a usage limit, spin up an **auditor**: another atom in its own directory beside the work, woken on a schedule, that walks the tree and respawns anything gone quiet without finishing.
 
-The auditor is itself an atom. You don't have to build it from scratch — see `INSTALLATION.md` in the cc_atoms repo for the materials, and ask Claude Code to set it up for you when you're starting a long run.
+The minimum auditor is a sibling directory (`<work_root>/_audit/`) with a `USER_PROMPT.md` describing the audit job (walk every `README.md`, check `Status`, ps-grep live `claude` processes, respawn any `IN_PROGRESS` directory whose process has died) and a small shell loop that wakes it every fifteen or thirty minutes:
+
+```bash
+# In <work_root>/_audit/, two parallel loops offset by 15 min.
+nohup bash -c 'for i in {1..10}; do
+  timeout 300 env -u ANTHROPIC_API_KEY claude --dangerously-skip-permissions --model sonnet \
+    -p "Operate as an atom per ~/ATOM.md and ./USER_PROMPT.md here." >> /tmp/audit_a.log 2>&1
+  sleep 1800
+done' &
+```
+
+If you have the cc_atoms repo cloned, the full auditor scripts — including the dashboard write to `AUDIT.md` and the two-worker staggered loop — live as fenced code blocks in `INSTALLATION.md`. Open a Claude Code session in `~/claude/cc_atoms/` and say *"set up the auditor for `<work_root>`"* and Claude will materialize them.
 
 ---
 
